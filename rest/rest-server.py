@@ -82,28 +82,33 @@ def plot_map():
     rmq = getRMQ()
 
     r = request
+
+    data = jsonpickle.decode(r.data)
     status = 200
 
-
-    resposne_pickled = jsonpickle.encode(response)
 
     # TODO: Look for file in Redis DB to see if it needs to be retrieved.
 
     # Retrieve the data file
-    hrrr_blob = f'hrrr.t{r.start[8:]}z.wrfprsf{r.fcst:02d}.grib2'
-    bucket_name = f'high-resolution-rapid-refresh/hrrr.{r.start[0:9]}/conus'
-    hrrr_file = f'/grib/{r.start[0:9]}/{hrrr_blob}'
 
-    log_info(f'Downloading {hrrr_file} from GCP bucket {bucket_name} to {hrrr_file}')
+    start = data.get('start')
+    fcst = int(data.get('fcst'))
+    hrrr_blob = f'hrrr.{start[0:8]}/conus/hrrr.t{start[8:]}z.wrfprsf{fcst:02d}.grib2'
+    bucket_name = f'high-resolution-rapid-refresh'
+    hrrr_file = f'./grib/{hrrr_blob}'
+
+    os.makedirs(os.path.dirname(hrrr_file), exist_ok=True)
+
+    log_info(f'Downloading {hrrr_file} from GCP bucket {bucket_name} to {hrrr_file}', rmq)
     download_public_file(bucket_name, hrrr_blob, hrrr_file)
 
     body = {
-        'file': filepath,
-        'field': r.field,
-        'level': r.level,
+        'file': hrrr_file,
+        'field': data.get('field'),
+        'level': data.get('level'),
         }
 
-    log_info(f'Requesting a map for {r.field} at {r.level} on {r.start} + {r.fcst} h', rmq)
+    log_info(f"Requesting a map for {data.get('field')} at {data.get('level')} on {start} + {fcst} h", rmq)
     # Request worker to plot a field at a level from the retrieved file.
     pickled_body = jsonpickle.encode(body)
 
